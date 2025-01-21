@@ -1,0 +1,49 @@
+\input{../template/includes.tex}
+
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyheadoffset[LO,LE,RO,RE]{0pt}
+\fancyfootoffset[LO,LE,RO,RE]{0pt}
+\pagestyle{fancy}
+\fancyhead{}
+\fancyhead[LO,RE]{{\bfseries \studentname}\\\studentemail}
+\fancyhead[RO,LE]{{\bfseries \svcourse, SV~\svnumber}\\\svdate\ \svtime, \svvenue}
+\fancyfoot{}
+\fancyfoot[LO,RE]{For: \svrname}
+\fancyfoot[RO,LE]{\today\hspace{1cm}\thepage\ / \pageref{LastPage}}
+\fancyfoot[C]{\qrcode[height=0.8cm]{\svuploadkey}}
+\setlength{\headheight}{22.55pt}
+
+
+\ifthenelse{\equal{\jkfside}{oneside}}{
+
+ \ifthenelse{\equal{\jkfhanded}{left}}{
+  % 1. Left-handed marker, one-sided printing or e-marking, use oneside and...
+  \evensidemargin=\oddsidemargin
+  \oddsidemargin=73pt
+  \setlength{\marginparwidth}{111pt}
+  \setlength{\marginparsep}{-\marginparsep}
+  \addtolength{\marginparsep}{-\textwidth}
+  \addtolength{\marginparsep}{-\marginparwidth}
+ }{
+  % 2. Right-handed marker, one-sided printing or e-marking, use oneside.
+  \setlength{\marginparwidth}{111pt}
+ }
+
+}{
+ % 3. Alternating margins, two-sided printing, use twoside.
+}
+
+
+\setlength{\parindent}{0em}
+\addtolength{\parskip}{1ex}
+
+% Exam question headings, labels and sensible layout (courtesy of Tom Johnson)
+\setlist{parsep=\parskip, listparindent=\parindent}
+\newcommand{\examhead}[3]{\section{#1 Paper #2 Question #3}}
+\newenvironment{examquestion}[3]{
+\examhead{#1}{#2}{#3}\setlist[enumerate, 1]{label=(\alph*)}\setlist[enumerate, 2]{label=(\roman*)}
+\marginpar{\href{https://www.cl.cam.ac.uk/teaching/exams/pastpapers/y#1p#2q#3.pdf}{\qrcode{https://www.cl.cam.ac.uk/teaching/exams/pastpapers/y#1p#2q#3.pdf}}}
+\marginpar{\footnotesize \href{https://www.cl.cam.ac.uk/teaching/exams/pastpapers/y#1p#2q#3.pdf}{https://www.cl.cam.ac.uk/\\teaching/exams/pastpapers/\\y#1p#2q#3.pdf}}
+}{}
+
