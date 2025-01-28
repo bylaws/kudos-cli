@@ -1,12 +1,15 @@
 import json
-from datetime import datetime, timezone
-import os
+from datetime import datetime, timezone, timedelta
+import os, sys
 import shutil
 import requests
 import shutil
 from pathlib import Path
+import os
 import re
+import requests
 import subprocess
+
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -22,8 +25,6 @@ AUTH_URL = (
     "&desc=The%20KuDoS%20Project&msg=you%20requested%20an%20interactive%20login"
 )
 TARGET_DOMAIN = "kudos.chu.cam.ac.uk"
-INFOFILE_NAME = "infofile.tex"
-WORKFILE_NAME = "work.tex"
 
 def login():
     # Set up Selenium WebDriver
@@ -63,6 +64,7 @@ def login():
         else:
             print("KuDoSAuth cookie not found. Ensure login was successful.")
         return {"crsid": username, "auth": kudos_auth_cookie['value'] }
+
 
 
 
@@ -170,6 +172,9 @@ def load_config():
         raise FileNotFoundError("Config file not found. Please create config.json with your CRSID")
     except json.JSONDecodeError:
         raise ValueError("Invalid JSON in config file")
+
+INFOFILE_NAME = "infofile.tex"
+WORKFILE_NAME = "work.tex"
 
 def process_infofile(directory):
     # Construct the full path to the infofile
@@ -394,6 +399,7 @@ def select_supervision_slot(filtered_supervisions):
     print("\nAvailable courses:")
     for idx, (course, subject, tripos) in enumerate(courses, 1):
         print(f"{idx}. {course} ({subject} - {tripos})")
+    print(str(len(courses) +1)+  ". View marked work")
     
     # Get course selection
     while True:
@@ -402,6 +408,7 @@ def select_supervision_slot(filtered_supervisions):
             if 0 <= course_idx < len(courses):
                 selected_course = courses[course_idx]
                 break
+            if (course_idx == len(courses)): return True
             print("Invalid selection. Please try again.")
         except ValueError:
             print("Please enter a valid number.")
@@ -452,8 +459,95 @@ def select_supervision_slot(filtered_supervisions):
                 print("Invalid supervision number. Please try again.")
         except ValueError:
             print("Please enter valid numbers.")
+    return False
+
+import requests
+from datetime import datetime
+
+def fetch_supervisions():
+    """Fetch supervisions from the API"""
+    config = load_config()
+    url = "https://kudos.chu.cam.ac.uk/kudos/rest/supervisions/upload-marked"
+    try:
+        response = requests.get(url, cookies={"KuDoSAuth": config['auth']})
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"Error fetching data: {e}")
+        return []
 
 
+def filter_recent_supervisions(supervisions):
+    """Filter supervisions to last 4 weeks"""
+    four_weeks_ago = datetime.now(timezone.utc) - timedelta(weeks=4)
+    return [
+        sv for sv in supervisions 
+        if parse_datetime(sv['start']) > four_weeks_ago
+    ]
+
+def display_supervisions(supervisions):
+    """Display supervisions and return them sorted by date"""
+    # Sort supervisions by date (newest last)
+    sorted_supervisions = sorted(
+        supervisions,
+        key=lambda x: parse_datetime(x['start'])
+    )
+    
+    # Print header
+    print("\nSupervisions (newest at bottom):")
+    print("-" * 80)
+    print(f"{'Index':<6} {'Date':<25} {'CRSID':<10} {'Supervisor':<10} {'Group':<6} {'SV#':<4} {'Status'}")
+    print("-" * 80)
+    
+    # Print each supervision
+    for idx, sv in enumerate(sorted_supervisions):
+        status = "Failed" if sv['failed'] else "Success"
+        print(f"{idx:<6} {sv['start']:<25} {sv['CRSID']:<10} "
+              f"{sv['supervisorCRSID']:<10} {sv['groupNumber']:<6} "
+              f"{sv['svNumber']:<4} {status}")
+    
+    return sorted_supervisions
+
+def select_supervision(supervisions):
+    """Get user selection via input"""
+    while True:
+        try:
+            print("\nEnter the index number of the supervision you want to view:")
+            idx = int(input("> "))
+            if 0 <= idx < len(supervisions):
+                return supervisions[idx]
+            print(f"Please enter a number between 0 and {len(supervisions)-1}")
+        except ValueError:
+            print("Please enter a valid number")
+
+def open_url(url):
+    """Open URL using system commands"""
+    if sys.platform == 'darwin':    # macOS
+        os.system(f'open "{url}"')
+    elif sys.platform == 'win32':   # Windows
+        os.system(f'start "{url}"')
+    else:                           # Linux and others
+        os.system(f'xdg-open "{url}"')
+
+def parse_date(date_str):
+    """Parse date string to datetime object"""
+    return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+
+def main2():
+    # Fetch data
+    supervisions = fetch_supervisions()
+    if not supervisions:
+        return
+    
+    # Display table
+    sorted_supervisions = display_supervisions(filter_recent_supervisions(supervisions))
+    
+    # Select supervision
+    selected = select_supervision(sorted_supervisions)
+    
+    # Open in browser
+    url = f"https://kudos.chu.cam.ac.uk/kudos/rest/supervisions/upload-marked/{selected['uuid']}"
+    open_url(url)
 
 def main():
     print("KuDoS CLI 1.0")
@@ -469,6 +563,8 @@ def main():
     if (response.status_code != 200):
         print("KuDoS error!")
         return
+
+
     
     # Load supervisions from file
     supervisions = json.loads(response.text)
@@ -477,8 +573,10 @@ def main():
     
     # Apply filters
     filtered_results = filter_supervisions(supervisions, target_tripos)
+    
 
-    select_supervision_slot(filtered_results)
+    if (select_supervision_slot(filtered_results)):
+        main2()
 
 if __name__ == "__main__":
     main()
